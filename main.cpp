@@ -1,7 +1,9 @@
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <stack>
+#include <map>
 #include <cctype>
 #include <cstdlib>
 using namespace std;
@@ -25,6 +27,7 @@ vector<Token> tokenize(const string &expr)
 {
     vector<Token> tokens;
     size_t i = 0;
+
     while (i < expr.size())
     {
         char c = expr[i];
@@ -140,7 +143,8 @@ vector<Token> toPostfix(const vector<Token> &tokens)
         {
             if (!expectOperand)
             {
-                cerr << "Syntax error: unexpected '" << tok.value << "'\n";
+                cerr << "Syntax error: unexpected '"
+                     << tok.value << "'\n";
                 exit(1);
             }
             ops.push(tok);
@@ -167,7 +171,7 @@ vector<Token> toPostfix(const vector<Token> &tokens)
                              << tok.value << "'\n";
                         exit(1);
                     }
-                    ops.pop();
+                    ops.pop(); // discard the open bracket
                     found = true;
                     break;
                 }
@@ -199,7 +203,83 @@ vector<Token> toPostfix(const vector<Token> &tokens)
         output.push_back(ops.top());
         ops.pop();
     }
+
     return output;
+}
+vector<string> collectVariables(const vector<Token> &tokens)
+{
+    vector<string> vars;
+    map<string, bool> seen;
+    for (const auto &t : tokens)
+    {
+        if (t.type == TokenType::VARIABLE && !seen[t.value])
+        {
+            vars.push_back(t.value);
+            seen[t.value] = true;
+        }
+    }
+    return vars;
+}
+double evaluate(const vector<Token> &postfix, const map<string, double> &varValues)
+{
+    stack<double> stk;
+    for (const auto &tok : postfix)
+    {
+        if (tok.type == TokenType::NUMBER)
+        {
+            stk.push(stod(tok.value));
+        }
+        else if (tok.type == TokenType::VARIABLE)
+        {
+            auto it = varValues.find(tok.value);
+            if (it == varValues.end())
+            {
+                cerr << "Runtime error: no value for variable '" << tok.value << "'\n";
+                exit(2);
+            }
+            stk.push(it->second);
+        }
+        else if (tok.type == TokenType::OPERATOR)
+        {
+            if (stk.size() < 2)
+            {
+                cerr << "Runtime error: not enough operands for '" << tok.value << "'\n";
+                exit(2);
+            }
+            double b = stk.top();
+            stk.pop();
+            double a = stk.top();
+            stk.pop();
+            if (tok.value == "+")
+                stk.push(a + b);
+            else if (tok.value == "-")
+                stk.push(a - b);
+            else if (tok.value == "*")
+                stk.push(a * b);
+            else if (tok.value == "/")
+            {
+                if (b == 0.0)
+                {
+                    cerr << "Logical error: division by zero\n";
+                    exit(3);
+                }
+                stk.push(a / b);
+            }
+        }
+    }
+    if (stk.size() != 1)
+    {
+        cerr << "Runtime error: malformed expression (leftover operands)\n";
+        exit(2);
+    }
+    return stk.top();
+}
+bool isBlankExpression(const string &expr)
+{
+    for (char c : expr)
+        if (!isspace(static_cast<unsigned char>(c)))
+            return false;
+    return true;
 }
 int main()
 {
@@ -209,8 +289,32 @@ int main()
         cerr << "Syntax error: empty input\n";
         return 1;
     }
+    if (expr.empty() || isBlankExpression(expr))
+    {
+        cerr << "Syntax error: empty or blank expression\n";
+        return 1;
+    }
     vector<Token> tokens = tokenize(expr);
+    if (tokens.empty())
+    {
+        cerr << "Syntax error: no valid tokens found\n";
+        return 1;
+    }
     vector<Token> postfix = toPostfix(tokens);
+    vector<string> vars = collectVariables(tokens);
+    map<string, double> varValues;
+    for (const auto &v : vars)
+    {
+        cerr << "Enter value for " << v << ": ";
+        double val;
+        if (!(cin >> val))
+        {
+            cerr << "\nRuntime error: invalid numeric input for '" << v << "'\n";
+            return 2;
+        }
+        cerr << "\n";
+        varValues[v] = val;
+    }
     for (size_t i = 0; i < postfix.size(); ++i)
     {
         if (i)
@@ -218,5 +322,10 @@ int main()
         cout << postfix[i].value;
     }
     cout << "\n";
+    double result = evaluate(postfix, varValues);
+    if (result == static_cast<long long>(result))
+        cout << static_cast<long long>(result) << "\n";
+    else
+        cout << result << "\n";
     return 0;
 }
