@@ -29,7 +29,7 @@ All bracket types are treated equally and must be properly nested and matched.
 
 ```bash
 # Using Make
-make
+mingw32-make
 
 # Or manually
 g++ -std=c++17 -Wall -O2 -o expression_eval src/main.cpp
@@ -97,6 +97,5 @@ echo "a + b * (c + 2)" | ./expression_eval
 .
 ├── Makefile
 ├── README.md
-└── src/
-    └── main.cpp
+└── main.cpp
 ```
